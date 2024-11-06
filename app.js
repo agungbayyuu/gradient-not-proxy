@@ -6,8 +6,8 @@ const crypto = require("crypto")
 const request = require("request")
 const path = require("path")
 const FormData = require("form-data")
-const proxy = require("selenium-webdriver/proxy")
-const proxyChain = require("proxy-chain")
+// const proxy = require("selenium-webdriver/proxy")
+// const proxyChain = require("proxy-chain")
 require("dotenv").config()
 
 const extensionId = "caacbgbklghmpodbdafajbgdnegacfmo"
@@ -19,12 +19,12 @@ const USER = process.env.APP_USER || ""
 const PASSWORD = process.env.APP_PASS || ""
 const ALLOW_DEBUG = process.env.ALLOW_DEBUG === "True"
 const EXTENSION_FILENAME = "app.crx"
-const PROXY = process.env.PROXY || undefined
+// const PROXY = process.env.PROXY || undefined
 
 console.log("-> Starting...")
 console.log("-> User:", USER)
 console.log("-> Pass:", PASSWORD)
-console.log("-> Proxy:", PROXY)
+// console.log("-> Proxy:", PROXY)
 console.log("-> Debug:", ALLOW_DEBUG)
 
 if (!USER || !PASSWORD) {
@@ -124,53 +124,7 @@ async function getDriverOptions() {
     options.addArguments("--blink-settings=imagesEnabled=false")
   }
 
-  if (PROXY) {
-    console.log("-> Setting up proxy...", PROXY)
-
-    let proxyUrl = PROXY
-
-    // if no scheme, add http://
-    if (!proxyUrl.includes("://")) {
-      proxyUrl = `http://${proxyUrl}`
-    }
-
-    const newProxyUrl = await proxyChain.anonymizeProxy(proxyUrl)
-
-    console.log("-> New proxy URL:", newProxyUrl)
-
-    options.setProxy(
-      proxy.manual({
-        http: newProxyUrl,
-        https: newProxyUrl,
-      })
-    )
-    const url = new URL(newProxyUrl)
-    console.log("-> Proxy host:", url.hostname)
-    console.log("-> Proxy port:", url.port)
-    options.addArguments(`--proxy-server=socks5://${url.hostname}:${url.port}`)
-    console.log("-> Setting up proxy done!")
-  } else {
-    console.log("-> No proxy set!")
-  }
-
   return options
-}
-
-async function getProxyIpInfo(driver, proxyUrl) {
-  // const url = "https://httpbin.org/ip"
-  const url = "https://myip.ipip.net"
-
-  console.log("-> Getting proxy IP info:", proxyUrl)
-
-  try {
-    await driver.get(url)
-    await driver.wait(until.elementLocated(By.css("body")), 30000)
-    const pageText = await driver.findElement(By.css("body")).getText()
-    console.log("-> Proxy IP info:", pageText)
-  } catch (error) {
-    console.error("-> Failed to get proxy IP info:", error)
-    throw new Error("Failed to get proxy IP info!")
-  }
 }
 
 (async () => {
@@ -199,14 +153,6 @@ async function getProxyIpInfo(driver, proxyUrl) {
       .build()
 
     console.log("-> Browser started!")
-
-    if (PROXY) {
-      try {
-        await getProxyIpInfo(driver, PROXY)
-      } catch (error) {
-        throw new Error("Failed to get proxy IP info, please check the proxy by the command 'curl -vv -x ${PROXY} https://myip.ipip.net'")
-      }
-    }
 
     console.log("-> Started! Logging in https://app.gradient.network/...")
     await driver.get("https://app.gradient.network/")
@@ -299,50 +245,5 @@ async function getProxyIpInfo(driver, proxyUrl) {
         "-> Failed to connect! Please check the following: ",
       )
       console.log(`
-    - Make sure the proxy is working, by 'curl -vv -x ${PROXY} https://myip.ipip.net'
     - Make sure the docker image is up to date, by 'docker pull overtrue/gradient-bot' and re-start the container.
-    - The official service itself is not very stable. So it is normal to see abnormal situations. Just wait patiently and it will restart automatically.
-    - If you are using a free proxy, it may be banned by the official service. Please try another static Static Residential proxy.
-  `)
-      await generateErrorReport(driver)
-      await driver.quit()
-      setTimeout(() => {
-        process.exit(1)
-      }, 5000)
-    }
-
-    console.log("-> Connected! Starting rolling...")
-
-    // 截图链接状态
-    takeScreenshot(driver, "connected.png")
-
-    console.log({
-      support_status: supportStatus,
-    })
-
-    console.log("-> Lunched!")
-
-    // keep the process running
-    setInterval(() => {
-      driver.getTitle().then((title) => {
-        console.log(`-> [${USER}] Running...`, title)
-      })
-
-      if (PROXY) {
-        console.log(`-> [${USER}] Running with proxy ${PROXY}...`)
-      } else {
-        console.log(`-> [${USER}] Running without proxy...`)
-      }
-    }, 10000)
-  } catch (error) {
-    console.error("Error occurred:", error)
-    // show error line
-    console.error(error.stack)
-
-    if (driver) {
-      await generateErrorReport(driver)
-      driver.quit()
-      process.exit(1)
-    }
-  }
-})()
+    - The official service itself is not very stable. So it is normal to see
