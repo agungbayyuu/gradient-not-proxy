@@ -1,27 +1,22 @@
-// 1. read proxies from file
-const fs = require('fs')
-const path = require('path')
-const proxies = fs.readFileSync(path.resolve(__dirname, 'proxies.txt'), 'utf-8').split('\n').filter(Boolean)
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
 
-// 2. start pm2 with PROXY env
-const { execSync } = require('child_process')
-const USER = process.env.APP_USER || ''
-const PASSWORD = process.env.APP_PASS || ''
+const USER = process.env.APP_USER || '';
+const PASSWORD = process.env.APP_PASS || '';
 
 if (!USER || !PASSWORD) {
-  console.error("Please set APP_USER and APP_PASS env variables")
-  process.exit()
+  console.error("Please set APP_USER and APP_PASS env variables");
+  process.exit();
 }
 
-let index = 0
-for (const proxy of proxies) {
-  const name = `gradient-${index++}`
-  execSync(`PROXY=${proxy} APP_USER='${USER}' APP_PASS='${PASSWORD}' pm2 start app.js --name ${name}`)
-  console.log(`-> Started ${name} with proxy ${proxy}`)
-}
+// 1. Start pm2 without PROXY env
+const name = 'gradient-app';
+execSync(`APP_USER='${USER}' APP_PASS='${PASSWORD}' pm2 start app.js --name ${name}`);
+console.log(`-> Started ${name} without proxy`);
 
-// 3. save proxies to file
-console.log('-> √ All proxies started!')
+// 2. Log completion message
+console.log('-> √ Application started without proxy!');
 
-// 4. pm2 status
-execSync('pm2 status')
+// 3. Display pm2 status
+execSync('pm2 status');
