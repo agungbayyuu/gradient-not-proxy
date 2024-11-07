@@ -1,249 +1,158 @@
-const { Builder, By, until, Capabilities } = require("selenium-webdriver")
-const chrome = require("selenium-webdriver/chrome")
-const url = require("url")
-const fs = require("fs")
-const crypto = require("crypto")
-const request = require("request")
-const path = require("path")
-const FormData = require("form-data")
-// const proxy = require("selenium-webdriver/proxy")
-// const proxyChain = require("proxy-chain")
-require("dotenv").config()
+const { Builder, By, until } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+const fs = require("fs");
+const path = require("path");
+const request = require("request");
+require("dotenv").config();
 
-const extensionId = "caacbgbklghmpodbdafajbgdnegacfmo"
-const CRX_URL = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=98.0.4758.102&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc&nacl_arch=x86-64`
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
+const extensionId = "caacbgbklghmpodbdafajbgdnegacfmo";
+const CRX_URL = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=98.0.4758.102&acceptformat=crx2,crx3&x=id%3D${extensionId}%26uc&nacl_arch=x86-64`;
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36";
 
-const USER = process.env.APP_USER || ""
-const PASSWORD = process.env.APP_PASS || ""
-const ALLOW_DEBUG = process.env.ALLOW_DEBUG === "True"
-const EXTENSION_FILENAME = "app.crx"
-// const PROXY = process.env.PROXY || undefined
+const USER = process.env.APP_USER || "";
+const PASSWORD = process.env.APP_PASS || "";
+const ALLOW_DEBUG = process.env.ALLOW_DEBUG === "True";
+const EXTENSION_FILENAME = "app.crx";
 
-console.log("-> Starting...")
-console.log("-> User:", USER)
-console.log("-> Pass:", PASSWORD)
-// console.log("-> Proxy:", PROXY)
-console.log("-> Debug:", ALLOW_DEBUG)
+console.log("-> Starting...");
+console.log("-> User:", USER);
+console.log("-> Pass:", PASSWORD);
+console.log("-> Debug:", ALLOW_DEBUG);
 
 if (!USER || !PASSWORD) {
-  console.error("Please set APP_USER and APP_PASS env variables")
-  process.exit()
+  console.error("Please set APP_USER and APP_PASS env variables");
+  process.exit();
 }
 
 if (ALLOW_DEBUG) {
-  console.log(
-    "-> Debugging is enabled! This will generate a screenshot and console logs on error!"
-  )
+  console.log("-> Debugging is enabled! This will generate a screenshot and console logs on error!");
 }
 
-async function downloadExtension(extensionId) {
-  const url = CRX_URL.replace(extensionId, extensionId)
-  const headers = { "User-Agent": USER_AGENT }
+async function downloadExtension() {
+  const url = CRX_URL;
+  const headers = { "User-Agent": USER_AGENT };
 
-  console.log("-> Downloading extension from:", url)
+  console.log("-> Downloading extension from:", url);
 
   // if file exists and modify time is less than 1 day, skip download
   if (fs.existsSync(EXTENSION_FILENAME) && fs.statSync(EXTENSION_FILENAME).mtime > Date.now() - 86400000) {
-    console.log("-> Extension already downloaded! skip download...")
-    return
+    console.log("-> Extension already downloaded! skip download...");
+    return;
   }
 
   return new Promise((resolve, reject) => {
     request({ url, headers, encoding: null }, (error, response, body) => {
       if (error) {
-        console.error("Error downloading extension:", error)
-        return reject(error)
+        console.error("Error downloading extension:", error);
+        return reject(error);
       }
-      fs.writeFileSync(EXTENSION_FILENAME, body)
+      fs.writeFileSync(EXTENSION_FILENAME, body);
       if (process.env.DEBUG) {
-        const md5 = crypto.createHash("md5").update(body).digest("hex")
-        console.log("-> Extension MD5: " + md5)
+        const md5 = crypto.createHash("md5").update(body).digest("hex");
+        console.log("-> Extension MD5: " + md5);
       }
-      resolve()
-    })
-  })
+      resolve();
+    });
+  });
 }
 
 async function takeScreenshot(driver, filename) {
-  // if process.env.DEBUG is set, taking screenshot
   if (!process.env.DEBUG) {
-    return
+    return;
   }
-
-  const data = await driver.takeScreenshot()
-  fs.writeFileSync(filename, Buffer.from(data, "base64"))
-}
-
-async function generateErrorReport(driver) {
-  await takeScreenshot(driver, "error.png")
-
-  const logs = await driver.manage().logs().get("browser")
-  fs.writeFileSync(
-    "error.log",
-    logs.map((log) => `${log.level.name}: ${log.message}`).join("\n")
-  )
+  const data = await driver.takeScreenshot();
+  fs.writeFileSync(filename, Buffer.from(data, "base64"));
 }
 
 async function getDriverOptions() {
-  const options = new chrome.Options()
+  const options = new chrome.Options();
 
-  options.addArguments("--headless")
-  options.addArguments(`user-agent=${USER_AGENT}`)
-  options.addArguments("--remote-allow-origins=*")
-  options.addArguments("--disable-dev-shm-usage")
-  // options.addArguments("--incognito")
-  options.addArguments('enable-automation')
-  options.addArguments("--window-size=1920,1080")
-  options.addArguments("--start-maximized")
-  options.addArguments("--disable-renderer-backgrounding")
-  options.addArguments("--disable-background-timer-throttling")
-  options.addArguments("--disable-backgrounding-occluded-windows")
-  options.addArguments("--disable-low-res-tiling")
-  options.addArguments("--disable-client-side-phishing-detection")
-  options.addArguments("--disable-crash-reporter")
-  options.addArguments("--disable-oopr-debug-crash-dump")
-  options.addArguments("--disable-infobars")
-  options.addArguments("--no-crash-upload")
-  options.addArguments("--dns-prefetch-disable")
-  options.addArguments("--disable-crash-reporter")
-  options.addArguments("--disable-popup-blocking")
-  options.addArguments("--disable-gpu")
-  options.addArguments("--allow-running-insecure-content")
-  options.addArguments("--disable-web-security")
-  options.addArguments("--ignore-certificate-errors")
-  options.addArguments("--ignore-ssl-errors")
-  options.addArguments("--no-sandbox")
-  options.addArguments("--remote-allow-origins=*")
-  options.addArguments("--no-first-run")
-  options.addArguments("--no-default-browser-check")
-  options.addArguments("--disable-default-apps")
+  options.addArguments("--headless");
+  options.addArguments(`user-agent=${USER_AGENT}`);
+  options.addArguments("--remote-allow-origins=*");
+  options.addArguments("--disable-dev-shm-usage");
+  options.addArguments("--disable-gpu");
+  options.addArguments("--no-sandbox");
+  options.addArguments("--disable-web-security");
+  options.addArguments("--ignore-certificate-errors");
 
   if (!process.env.DEBUG) {
-    options.addArguments("--blink-settings=imagesEnabled=false")
+    options.addArguments("--blink-settings=imagesEnabled=false");
   }
 
-  return options
+  return options;
 }
 
 (async () => {
-  await downloadExtension(extensionId)
+  await downloadExtension();
 
-  const options = await getDriverOptions()
+  const options = await getDriverOptions();
+  options.addExtensions(path.resolve(__dirname, EXTENSION_FILENAME));
 
-  options.addExtensions(path.resolve(__dirname, EXTENSION_FILENAME))
+  console.log(`-> Extension added! ${EXTENSION_FILENAME}`);
 
-  console.log(`-> Extension added! ${EXTENSION_FILENAME}`)
-
-  // enable debug
   if (ALLOW_DEBUG) {
-    options.addArguments("--enable-logging")
-    options.addArguments("--v=1")
+    options.addArguments("--enable-logging");
+    options.addArguments("--v=1");
   }
 
-  let driver
+  let driver;
   try {
-    console.log("-> Starting browser...")
-    console.log("-> (this may take 5-10 minutes, please wait)")
+    console.log("-> Starting browser...");
+    driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
-    driver = await new Builder()
-      .forBrowser("chrome")
-      .setChromeOptions(options)
-      .build()
+    console.log("-> Browser started!");
+    await driver.get("https://app.gradient.network/");
 
-    console.log("-> Browser started!")
+    const emailInput = By.css('[placeholder="Enter Email"]');
+    const passwordInput = By.css('[type="password"]');
+    const loginButton = By.css("button");
 
-    console.log("-> Started! Logging in https://app.gradient.network/...")
-    await driver.get("https://app.gradient.network/")
+    await driver.wait(until.elementLocated(emailInput), 30000);
+    await driver.wait(until.elementLocated(passwordInput), 30000);
+    await driver.wait(until.elementLocated(loginButton), 30000);
 
-    const emailInput = By.css('[placeholder="Enter Email"]')
-    const passwordInput = By.css('[type="password"]')
-    const loginButton = By.css("button")
-
-    await driver.wait(until.elementLocated(emailInput), 30000)
-    await driver.wait(until.elementLocated(passwordInput), 30000)
-    await driver.wait(until.elementLocated(loginButton), 30000)
-
-    await driver.findElement(emailInput).sendKeys(USER)
-    await driver.findElement(passwordInput).sendKeys(PASSWORD)
-    await driver.findElement(loginButton).click()
+    await driver.findElement(emailInput).sendKeys(USER);
+    await driver.findElement(passwordInput).sendKeys(PASSWORD);
+    await driver.findElement(loginButton).click();
 
     await driver.wait(
-      until.elementLocated(
-        By.xpath('//*[contains(text(), "Copy Referral Link")]')
-      ),
+      until.elementLocated(By.xpath('//*[contains(text(), "Copy Referral Link")]')),
       30000
-    )
+    );
 
-    console.log("-> Logged in! Waiting for open extension...")
+    console.log("-> Logged in! Waiting for open extension...");
+    takeScreenshot(driver, "logined.png");
 
-    // 截图登录状态
-    takeScreenshot(driver, "logined.png")
+    await driver.get(`chrome-extension://${extensionId}/popup.html`);
 
-    await driver.get(`chrome-extension://${extensionId}/popup.html`)
-
-    // 直到找到 "Status" 文本的 div 元素
     await driver.wait(
       until.elementLocated(By.xpath('//div[contains(text(), "Status")]')),
       30000
-    )
+    );
 
-    console.log("-> Extension loaded!")
+    console.log("-> Extension loaded!");
 
-    // if there is a page with a button "I got it", click it
-    try {
-      const gotItButton = await driver.findElement(
-        By.xpath('//button[contains(text(), "I got it")]')
-      )
-      await gotItButton.click()
-      console.log('-> "I got it" button clicked!')
-    } catch (error) {
-      // save rendered dom to file
-      const dom = await driver
-        .findElement(By.css("html"))
-        .getAttribute("outerHTML")
-      fs.writeFileSync("dom.html", dom)
-      console.error('-> No "I got it" button found!(skip)')
-    }
-
-    // if found a div include text "Sorry, Gradient is not yet available in your region. ", then exit
-    try {
-      const notAvailable = await driver.findElement(
-        By.xpath(
-          '//*[contains(text(), "Sorry, Gradient is not yet available in your region.")]'
-        )
-      )
-      console.log("-> Sorry, Gradient is not yet available in your region. ")
-      await driver.quit()
-      process.exit(1)
-    } catch (error) {
-      console.log("-> Gradient is available in your region. ")
-    }
-
-    await driver.wait(
-      until.elementLocated(By.xpath('//*[contains(text(), "Today\'s Taps")]')),
-      30000
-    )
-
-    // <div class="absolute mt-3 right-0 z-10">
     const supportStatus = await driver
       .findElement(By.css(".absolute.mt-3.right-0.z-10"))
-      .getText()
+      .getText();
 
-    const dom = await driver
-      .findElement(By.css("html"))
-      .getAttribute("outerHTML")
-    fs.writeFileSync("dom.html", dom)
+    const dom = await driver.findElement(By.css("html")).getAttribute("outerHTML");
+    fs.writeFileSync("dom.html", dom);
 
-    await takeScreenshot(driver, "status.png")
+    await takeScreenshot(driver, "status.png");
 
-    console.log("-> Status:", supportStatus)
+    console.log("-> Status:", supportStatus);
 
     if (supportStatus.includes("Disconnected")) {
-      console.log(
-        "-> Failed to connect! Please check the following: ",
-      )
-      console.log(`
-    - Make sure the docker image is up to date, by 'docker pull overtrue/gradient-bot' and re-start the container.
-    - The official service itself is not very stable. So it is normal to see
+      console.log("-> Failed to connect! Please check the following: ");
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    await generateErrorReport(driver);
+  } finally {
+    if (driver) {
+      await driver.quit();
+    }
+  }
+})();
